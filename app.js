@@ -20,9 +20,10 @@ const seekBar = document.getElementById('seek-slider');
 const timeCurrent = document.getElementById('time-current');
 const timeTotal = document.getElementById('time-total');
 
-// Added controls: skip buttons, played fill, and the hover scrub preview
+// Added controls: skip buttons, copy button, played fill, and the hover scrub preview
 const btnBack = document.getElementById('btn-back');
 const btnFwd = document.getElementById('btn-fwd');
+const btnCopy = document.getElementById('btn-copy');
 const seekPlayed = document.getElementById('seek-played');
 const seekWrap = document.querySelector('.seek-wrap');
 const seekPreview = document.getElementById('seek-preview');
@@ -273,6 +274,8 @@ function connectWebSocket() {
                         filterPixelBtn.title = '';
                     }
                 }
+
+                updateCopyButtonState();
 
                 audioOffset = startOffset;
                 frameBuffer.length = 0;
@@ -595,6 +598,14 @@ function finishStream() {
     statusEl.textContent = 'Ready';
     statusEl.style.color = 'rgba(255,255,255,0.6)';
     if (playPauseBtn) playPauseBtn.textContent = '▶';
+    if (btnCopy) {
+        btnCopy.textContent = '[ COPY ]';
+        btnCopy.classList.remove('copied');
+        if (copyResetTimer) {
+            clearTimeout(copyResetTimer);
+            copyResetTimer = null;
+        }
+    }
     readyToRender = false;
     pauseStartTime = 0;
     frameBuffer.length = 0;
@@ -773,6 +784,91 @@ if (seekBar) {
 
 if (btnBack) btnBack.addEventListener('click', (e) => { e.stopPropagation(); skip(-10); });
 if (btnFwd)  btnFwd.addEventListener('click', (e) => { e.stopPropagation(); skip(10); });
+
+// ── COPY FRAME AS ASCII TEXT ──
+let copyResetTimer = null;
+
+function updateCopyButtonState() {
+    if (!btnCopy) return;
+    if (pixelMode) {
+        btnCopy.disabled = true;
+        btnCopy.title = 'Copy text is only available in ASCII modes';
+    } else {
+        btnCopy.disabled = false;
+        btnCopy.title = 'Copy Frame as ASCII Text';
+    }
+}
+
+function getCurrentFrameAsciiText() {
+    if (pixelMode) return null;
+    if (player && player.textContent && player.textContent.length > 0) {
+        return player.textContent;
+    }
+    if (selectionBuffer && textDecoder) {
+        return textDecoder.decode(selectionBuffer);
+    }
+    return null;
+}
+
+function showCopiedFeedback() {
+    if (!btnCopy) return;
+    btnCopy.textContent = '[ COPIED! ]';
+    btnCopy.classList.add('copied');
+    if (copyResetTimer) clearTimeout(copyResetTimer);
+    copyResetTimer = setTimeout(() => {
+        btnCopy.textContent = '[ COPY ]';
+        btnCopy.classList.remove('copied');
+        copyResetTimer = null;
+    }, 1500);
+}
+
+function fallbackCopyText(text) {
+    try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        textarea.style.pointerEvents = 'none';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (successful) {
+            showCopiedFeedback();
+        } else {
+            console.warn('Fallback copy command returned false');
+        }
+    } catch (err) {
+        console.error('Fallback clipboard copy failed:', err);
+    }
+}
+
+if (btnCopy) {
+    updateCopyButtonState();
+    btnCopy.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (pixelMode) return;
+        const text = getCurrentFrameAsciiText();
+        if (!text) {
+            console.warn('No ASCII frame available to copy.');
+            return;
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text)
+                .then(() => {
+                    showCopiedFeedback();
+                })
+                .catch((err) => {
+                    console.warn('navigator.clipboard.writeText failed, using fallback:', err);
+                    fallbackCopyText(text);
+                });
+        } else {
+            fallbackCopyText(text);
+        }
+    });
+}
 
 if (seekWrap) {
     seekWrap.addEventListener('mousemove', onSeekHover);
@@ -981,6 +1077,8 @@ if (filterPixelBtn) {
             const nextMode = !pixelMode;
             filterPixelBtn.dataset.active = nextMode ? 'true' : 'false';
             filterPixelBtn.textContent = nextMode ? 'ON' : 'OFF';
+            pixelMode = nextMode;
+            updateCopyButtonState();
             const currentAbsTime = getMasterClock();
             ws.send(JSON.stringify({
                 type: 'reinit',

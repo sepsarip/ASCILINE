@@ -17,6 +17,7 @@ __pycache__/
 venv/
 .vscode/
 .idea/
+.playwright-mcp/
 
 # Experiment artifacts (scripts are tracked; generated outputs are not)
 experiments/vectors/

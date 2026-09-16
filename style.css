@@ -255,6 +255,17 @@ body {
     min-width: 40px; 
     height: 32px;   
 }
+#btn-copy {
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+}
+#btn-copy.copied {
+    color: #fff;
+    background: rgba(0, 255, 65, 0.25);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+}
 .ctrl-btn:hover { border-color: var(--accent-color); }
 .ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; border-color: #333; }
 
